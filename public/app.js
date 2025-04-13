@@ -1,46 +1,103 @@
-async function laadVoorraad() {
-    const container = document.getElementById('voorraad-container');
-    container.innerHTML = '<p>Voorraadgegevens worden geladen...</p>';
+async function fetchVoorraad() {
+    const voorraadResponse = await fetch('/api/voorraad');
+    const voorraadData = await voorraadResponse.json();
 
-    try {
-        const response = await fetch('/api/voorraad');
-        const data = await response.json();
+    const thuisResponse = await fetch('/api/thuisvoorraad');
+    const thuisData = await thuisResponse.json();
 
-        container.innerHTML = '';
+    const voorraadContainer = document.getElementById('voorraad-container');
+    voorraadContainer.innerHTML = '';
 
-        if (!data || !data.products || data.products.length === 0) {
-            container.innerHTML = '<p>Geen voorraadgegevens gevonden.</p>';
-            return;
-        }
+    const producten = voorraadData.offers || [];
 
-        data.products.forEach(product => {
-            const productDiv = document.createElement('div');
-            productDiv.classList.add('product');
+    producten.forEach(offer => {
+        const ean = offer.ean;
+        const titel = offer.title || 'Geen titel';
+        const bolVoorraad = offer.stockAmount || 0;
+        const verkoop30Dagen = offer.fulfilmentDeliveryPromiseDays || 0; // Dummy want echte verkoopdata is pas met volledige API
 
-            const voorraadDagen = product.forecastDays || 0;
+        const thuisAantal = thuisData[ean] || 0;
+        const totaalVoorraad = bolVoorraad + thuisAantal;
+        const geschatteVerkoop = 2; // Dummy waarde
+        const dagenVoorraad = geschatteVerkoop > 0 ? Math.floor(totaalVoorraad / geschatteVerkoop) : 999;
 
-            if (voorraadDagen < 10) {
-                productDiv.classList.add('critical');
-            } else if (voorraadDagen < 20) {
-                productDiv.classList.add('warning');
-            } else {
-                productDiv.classList.add('safe');
-            }
+        let voorraadStatus = 'veilig';
+        if (dagenVoorraad <= 10 || bolVoorraad <= 10) voorraadStatus = 'kritiek';
+        else if (dagenVoorraad <= 15 || bolVoorraad <= 15) voorraadStatus = 'waarschuwing';
 
-            productDiv.innerHTML = `
-                <h2>${product.name}</h2>
-                <p>EAN: ${product.ean}</p>
-                <p>Huidige voorraad: ${product.stock}</p>
-                <p>Geschatte verkoop komende 28 dagen: ${product.salesForecast}</p>
-                <p>Voorraad dagen: ${voorraadDagen}</p>
-            `;
+        const productDiv = document.createElement('div');
+        productDiv.className = `product ${voorraadStatus}`;
 
-            container.appendChild(productDiv);
-        });
-    } catch (error) {
-        console.error('Fout bij laden voorraad:', error);
-        container.innerHTML = '<p>Er is een fout opgetreden bij het laden van de voorraad.</p>';
-    }
+        productDiv.innerHTML = `
+            <h3>${titel}</h3>
+            <p><strong>EAN:</strong> ${ean}</p>
+            <p><strong>LVB-voorraad:</strong> ${bolVoorraad}</p>
+            <p><strong>Thuisvoorraad:</strong> ${thuisAantal}</p>
+            <p><strong>Totaal voorraad:</strong> ${totaalVoorraad}</p>
+            <p><strong>Geschatte dagen voorraad:</strong> ${dagenVoorraad}</p>
+            <input type="number" id="aanpassen-${ean}" placeholder="Thuisvoorraad aanpassen">
+            <button onclick="aanpassenThuisVoorraad('${ean}')">Aanpassen</button>
+            <input type="number" id="verzonden-${ean}" placeholder="Aantal verzonden naar LVB">
+            <button onclick="verzondenNaarLVB('${ean}')">Verzonden naar LVB</button>
+        `;
+
+        voorraadContainer.appendChild(productDiv);
+    });
 }
 
-document.addEventListener('DOMContentLoaded', laadVoorraad);
+async function aanpassenThuisVoorraad(ean) {
+    const input = document.getElementById(`aanpassen-${ean}`);
+    const aantal = parseInt(input.value);
+
+    if (isNaN(aantal)) {
+        alert('Voer een geldig aantal in.');
+        return;
+    }
+
+    await fetch('/api/thuisvoorraad', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ ean, aantal })
+    });
+
+    fetchVoorraad();
+}
+
+async function verzondenNaarLVB(ean) {
+    const input = document.getElementById(`verzonden-${ean}`);
+    const aantal = parseInt(input.value);
+
+    if (isNaN(aantal)) {
+        alert('Voer een geldig aantal in.');
+        return;
+    }
+
+    await fetch('/api/verzonden-lvb', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ verzonden: [{ ean, aantal }] })
+    });
+
+    fetchVoorraad();
+}
+
+// Sorteren knop
+function sorteerVoorraad() {
+    const voorraadContainer = document.getElementById('voorraad-container');
+    const producten = Array.from(voorraadContainer.getElementsByClassName('product'));
+
+    producten.sort((a, b) => {
+        const aDagen = parseInt(a.querySelector('p:nth-child(6)').textContent.replace(/\D/g, '')) || 0;
+        const bDagen = parseInt(b.querySelector('p:nth-child(6)').textContent.replace(/\D/g, '')) || 0;
+        return aDagen - bDagen;
+    });
+
+    producten.forEach(p => voorraadContainer.appendChild(p));
+}
+
+fetchVoorraad();
+
