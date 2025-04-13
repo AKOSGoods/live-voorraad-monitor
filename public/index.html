@@ -3,14 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Voorraadmonitor</title>
+    <title>Live Voorraad Monitoring AKOS</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>Live Voorraadmonitor AKOSGoods</h1>
-    <div id="voorraad-container">
-        <p>Voorraadgegevens worden geladen...</p>
-    </div>
+    <header>
+        <h1>Voorraad Dashboard</h1>
+        <button onclick="sorteerVoorraad()">Sorteer op dagen voorraad (laag naar hoog)</button>
+    </header>
+
+    <main>
+        <div id="voorraad-container"></div>
+    </main>
 
     <script src="app.js"></script>
 </body>
