@@ -1,43 +1,56 @@
 const express = require('express');
 const fetch = require('node-fetch');
+const dotenv = require('dotenv');
 const path = require('path');
-require('dotenv').config();
+
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.json());
-
-const clientId = process.env.BOL_CLIENT_ID;
-const clientSecret = process.env.BOL_CLIENT_SECRET;
 
 async function getAccessToken() {
-    const response = await fetch('https://login.bol.com/token?grant_type=client_credentials', {
+    const url = 'https://login.bol.com/token';
+    const credentials = Buffer.from(`${process.env.BOL_CLIENT_ID}:${process.env.BOL_CLIENT_SECRET}`).toString('base64');
+
+    const response = await fetch(url, {
         method: 'POST',
         headers: {
-            'Authorization': 'Basic ' + Buffer.from(clientId + ':' + clientSecret).toString('base64'),
+            'Authorization': `Basic ${credentials}`,
             'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: 'grant_type=client_credentials'
+    });
+
+    const data = await response.json();
+    console.log('Access Token Response:', data); // EXTRA DEBUGGING
+    return data.access_token;
+}
+
+async function getVoorraad() {
+    const accessToken = await getAccessToken();
+
+    const response = await fetch('https://api.bol.com/retailer/insights/stock', {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/vnd.retailer.v10+json'
         }
     });
+
     const data = await response.json();
-    return data.access_token;
+    console.log('Voorraad API Response:', data); // EXTRA DEBUGGING
+    return data;
 }
 
 app.get('/api/voorraad', async (req, res) => {
     try {
-        const token = await getAccessToken();
-        const voorraadResponse = await fetch('https://api.bol.com/retailer/insights/stock', {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Accept': 'application/vnd.retailer.v10+json'
-            }
-        });
-        const voorraadData = await voorraadResponse.json();
+        const voorraadData = await getVoorraad();
         res.json(voorraadData);
     } catch (error) {
         console.error('Fout bij ophalen voorraad:', error);
-        res.status(500).json({ error: 'Probleem bij ophalen voorraad.' });
+        res.status(500).json({ error: 'Interne serverfout' });
     }
 });
 
