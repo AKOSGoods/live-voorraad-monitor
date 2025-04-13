@@ -24,14 +24,14 @@ async function getAccessToken() {
     });
 
     const data = await response.json();
-    console.log('Access Token Response:', data); // EXTRA DEBUGGING
+    console.log('Access Token Response:', data); // DEBUGGING
     return data.access_token;
 }
 
 async function getVoorraad() {
     const accessToken = await getAccessToken();
 
-    const response = await fetch('https://api.bol.com/retailer/insights/stock', {
+    const response = await fetch('https://api.bol.com/retailer/offers', {
         method: 'GET',
         headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -40,7 +40,7 @@ async function getVoorraad() {
     });
 
     const data = await response.json();
-    console.log('Voorraad API Response:', data); // EXTRA DEBUGGING
+    console.log('Offers API Response:', data); // DEBUGGING
     return data;
 }
 
