@@ -10,6 +10,8 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+let thuisVoorraad = {}; // Handmatige thuisvoorraad per EAN
+
 async function getAccessToken() {
     const url = 'https://login.bol.com/token';
     const credentials = Buffer.from(`${process.env.BOL_CLIENT_ID}:${process.env.BOL_CLIENT_SECRET}`).toString('base64');
@@ -24,7 +26,7 @@ async function getAccessToken() {
     });
 
     const data = await response.json();
-    console.log('Access Token Response:', data); // DEBUGGING
+    console.log('Access Token Response:', data);
     return data.access_token;
 }
 
@@ -40,10 +42,11 @@ async function getVoorraad() {
     });
 
     const data = await response.json();
-    console.log('Offers API Response:', data); // DEBUGGING
+    console.log('Offers API Response:', data);
     return data;
 }
 
+// API endpoint: Ophalen live voorraad
 app.get('/api/voorraad', async (req, res) => {
     try {
         const voorraadData = await getVoorraad();
@@ -52,6 +55,34 @@ app.get('/api/voorraad', async (req, res) => {
         console.error('Fout bij ophalen voorraad:', error);
         res.status(500).json({ error: 'Interne serverfout' });
     }
+});
+
+// API endpoint: Aanpassen thuisvoorraad
+app.use(express.json());
+
+app.post('/api/thuisvoorraad', (req, res) => {
+    const { ean, aantal } = req.body;
+    thuisVoorraad[ean] = (thuisVoorraad[ean] || 0) + aantal;
+    console.log(`Thuisvoorraad aangepast: ${ean} = ${thuisVoorraad[ean]}`);
+    res.json({ success: true });
+});
+
+// API endpoint: Ophalen thuisvoorraad
+app.get('/api/thuisvoorraad', (req, res) => {
+    res.json(thuisVoorraad);
+});
+
+// API endpoint: Verwerken verzending naar LVB
+app.post('/api/verzonden-lvb', (req, res) => {
+    const { verzonden } = req.body;
+    verzonden.forEach(item => {
+        if (thuisVoorraad[item.ean]) {
+            thuisVoorraad[item.ean] -= item.aantal;
+            if (thuisVoorraad[item.ean] < 0) thuisVoorraad[item.ean] = 0;
+        }
+    });
+    console.log('Verzonden naar LVB verwerkt:', verzonden);
+    res.json({ success: true });
 });
 
 app.listen(PORT, () => {
